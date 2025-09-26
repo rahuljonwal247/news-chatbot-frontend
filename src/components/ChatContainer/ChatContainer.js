@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useRef, useEffect } from 'react';
 import MessageList from '../MessageList/MessageList';
 import MessageInput from '../MessageInput/MessageInput';
 import TypingIndicator from '../TypingIndicator/TypingIndicator';
@@ -11,70 +12,92 @@ const ChatContainer = ({
   isConnected,
   onSendMessage,
   theme,
-  sessionId
+  sessionId,
+  createNewSession, // pass this from App.js
 }) => {
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef(null);
-  const containerRef = useRef(null);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Scroll to bottom on new messages
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Handle typing indicator
+  // Typing indicator timeout
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (isTyping) {
-        setIsTyping(false);
-      }
-    }, 3000);
-
+    const timer = setTimeout(() => setIsTyping(false), 3000);
     return () => clearTimeout(timer);
   }, [isTyping]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ 
-      behavior: 'smooth',
-      block: 'end'
-    });
-  };
+  // Auto-create session & send message
+  // const handleSendMessage = async (message) => {
+  //   if (!isConnected || !message?.trim()) return;
+
+  //   setIsTyping(true);
+
+  //   try {
+  //     // 1️⃣ Create new session if it doesn't exist
+  //     if (!sessionId) {
+  //       await createNewSession();
+  //       // Wait a short moment to ensure sessionId is set
+  //       await new Promise((resolve) => setTimeout(resolve, 200));
+  //     }
+
+  //     // 2️⃣ Send the message
+  //     await onSendMessage(message);
+  //   } catch (error) {
+  //     console.error('Error sending message:', error);
+  //     setIsTyping(false);
+  //   }
+  // };
 
   const handleSendMessage = async (message) => {
-    if (!isConnected) {
-      return;
+  if (!isConnected || !message?.trim()) return;
+
+  setIsTyping(true);
+
+  try {
+    // 1️⃣ Create new session if it doesn't exist
+    if (!sessionId) {
+      await createNewSession();
+
+      // 2️⃣ Wait until sessionId is set (polling)
+      let retries = 0;
+      while (!sessionId && retries < 20) { // wait up to 2 seconds
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        retries++;
+      }
+
+      if (!sessionId) {
+        console.error('Session was not created in time.');
+        setIsTyping(false);
+        return;
+      }
     }
 
-    setIsTyping(true);
-    try {
-      await onSendMessage(message);
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setIsTyping(false);
-    }
-  };
+    // 3️⃣ Send the message now that session exists
+    await onSendMessage(message);
+
+  } catch (error) {
+    console.error('Error sending message:', error);
+    setIsTyping(false);
+  }
+};
+
 
   const showWelcome = messages.length === 0 && !isLoading;
 
   return (
-    <div className="chat-container" ref={containerRef}>
+    <div className="chat-container">
       <div className="chat-container__content">
         {showWelcome ? (
           <WelcomeMessage theme={theme} />
         ) : (
           <>
-            <MessageList 
-              messages={messages}
-              theme={theme}
-              isLoading={isLoading}
-            />
-            
-            {isTyping && (
-              <TypingIndicator theme={theme} />
-            )}
+            <MessageList messages={messages} theme={theme} isLoading={isLoading} />
+            {isTyping && <TypingIndicator theme={theme} />}
           </>
         )}
-        
         <div ref={messagesEndRef} />
       </div>
 
@@ -85,10 +108,10 @@ const ChatContainer = ({
           isLoading={isLoading}
           theme={theme}
           placeholder={
-            !isConnected 
-              ? "Connecting..." 
-              : isLoading 
-                ? "Processing..." 
+            !isConnected
+              ? "Connecting..."
+              : !sessionId
+                ? "Creating session..."
                 : "Ask me about recent news..."
           }
         />
