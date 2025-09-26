@@ -59,25 +59,51 @@ function App() {
   }, [socket]);
 
   // Handle suggestion clicks
-  useEffect(() => {
-    const handleSuggestion = (event) => {
-      if (event.detail && event.detail.message) {
-        handleSendMessage(event.detail.message);
+useEffect(() => {
+  const handleSuggestion = async (event) => {
+    if (event.detail && event.detail.message) {
+      // If no session exists, create one first
+      if (!sessionId) {
+        try {
+          await createNewSession();
+        } catch (error) {
+          console.error('Failed to create new session:', error);
+          return;
+        }
       }
-    };
 
-    document.addEventListener('sendSuggestion', handleSuggestion);
-    return () => document.removeEventListener('sendSuggestion', handleSuggestion);
-  }, []);
-
-  const handleNewSession = async () => {
-    try {
-      await createNewSession();
-      setSidebarOpen(false);
-    } catch (error) {
-      console.error('Failed to create new session:', error);
+      handleSendMessage(event.detail.message);
     }
   };
+
+  document.addEventListener('sendSuggestion', handleSuggestion);
+  return () => document.removeEventListener('sendSuggestion', handleSuggestion);
+}, [sessionId, createNewSession]);
+
+
+  // const handleNewSession = async () => {
+  //   try {
+  //     await createNewSession();
+  //     setSidebarOpen(false);
+  //   } catch (error) {
+  //     console.error('Failed to create new session:', error);
+  //   }
+  // };
+const handleNewSession = async () => {
+  try {
+    await createNewSession();
+    setSidebarOpen(false);
+
+    // Dispatch custom event for WelcomeMessage or other listeners
+    const event = new CustomEvent('newSessionCreated', {
+      detail: { sessionId: sessionId, timestamp: Date.now() }
+    });
+    document.dispatchEvent(event);
+
+  } catch (error) {
+    console.error('Failed to create new session:', error);
+  }
+};
 
   const handleClearSession = async () => {
     try {
@@ -144,14 +170,16 @@ const handleSendMessage = async (message) => {
               theme={theme}
             />
             
-            <ChatContainer
-              messages={messages}
-              isLoading={isLoading}
-              isConnected={isConnected}
-              onSendMessage={handleSendMessage}
-              theme={theme}
-              sessionId={sessionId}
-            />
+           <ChatContainer
+  messages={messages}
+  isLoading={isLoading}
+  isConnected={isConnected}
+  onSendMessage={handleSendMessage}
+  theme={theme}
+  sessionId={sessionId}
+  createNewSession={createNewSession} // <-- important
+/>
+
           </main>
         </div>
       </div>
