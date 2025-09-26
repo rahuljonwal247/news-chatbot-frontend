@@ -1,4 +1,5 @@
-import React from 'react';
+
+import React, { useEffect, useState } from 'react';
 import { FiMessageCircle, FiZap, FiGlobe } from 'react-icons/fi';
 import './WelcomeMessage.scss';
 
@@ -10,12 +11,27 @@ const WelcomeMessage = ({ theme }) => {
     "Any updates on climate change news?"
   ];
 
+  const [sessionActive, setSessionActive] = useState(false);
+
   const handleSuggestionClick = (suggestion) => {
     const event = new CustomEvent('sendSuggestion', {
       detail: { message: suggestion }
     });
     document.dispatchEvent(event);
   };
+
+  // Listen for new session
+  useEffect(() => {
+    const handleNewSession = (event) => {
+      setSessionActive(true); // reset or show welcome message
+      console.log('New session started!', event.detail);
+    };
+
+    document.addEventListener('newSessionCreated', handleNewSession);
+    return () => {
+      document.removeEventListener('newSessionCreated', handleNewSession);
+    };
+  }, []);
 
   return (
     <div className="welcome-message">
